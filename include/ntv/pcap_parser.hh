@@ -15,6 +15,8 @@
 #include <pcap/pcap.h>
 
 #include <ntv/raw_packet.hh>
+#include <ntv/usings.hh>
+#include <ntv/visualizer.hh>
 
 namespace fs = std::filesystem;
 
@@ -26,20 +28,27 @@ public:
 
 private:
   static void DeadHandler(u_char*, pcap_pkthdr const*, u_char const*);
-  /**
-   * 将数据包重新组装成会话
-   */
+  void Scan();
+  void DumpFlow();
   void Reassemble();
+  void WritePcap(flow_node_t const& flow, std::string_view filename);
 
   pcap_t* mHandle{ nullptr };
-  std::atomic_bool mStop{ false };
+  std::atomic_bool mStopAssemble{ false };
+  std::atomic_bool mStopScan{ false };
+  std::atomic_bool mStopDump{ false };
+
+  fs::path mInputFile;
+  fs::path mParentDir;
+  Visualizer mVisualizer;
 
   packet_queue_t mPacketQueue;
-  std::vector<std::thread> mProcessThreads;
+  std::thread mScanner;
+  std::thread mDumper;
+  std::vector<std::thread> mAssembleThreads;
   std::mutex mMutex;
-  std::condition_variable mCV;
+  std::condition_variable mScanCV;
   std::map<std::string, packet_list_t> mFlowMap;
-  using flow_node_t = std::map<std::string, packet_list_t>::node_type;
   moodycamel::ConcurrentQueue<flow_node_t> mSession;
   std::map<std::string, int64_t> mLastSeen;
 };

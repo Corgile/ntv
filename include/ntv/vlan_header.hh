@@ -2,8 +2,8 @@
 // Created by brian on 11/28/23.
 //
 
-#ifndef HOUND_VLAN_HEADER_HPP
-#define HOUND_VLAN_HEADER_HPP
+#ifndef VLAN_HEADER_HPP
+#define VLAN_HEADER_HPP
 
 #include <cstdint>
 
@@ -22,4 +22,4 @@ struct vlan_header {
   uint16_t etherType;
 } __attribute__((__packed__));
 
-#endif // HOUND_VLAN_HEADER_HPP
+#endif // VLAN_HEADER_HPP
