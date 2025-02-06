@@ -11,24 +11,24 @@
 using namespace std::chrono_literals;
 struct ParseOption {
   std::string filter{ "ip or vlan" };
-  int64_t timeout_us{ 10'000'000 }; // 10s
+  decltype(10ms) timeout{ 10s };
 
   ParseOption() = default;
   ParseOption(std::string filter, int64_t const timeout)
       : filter{ std::move(filter) }
-      , timeout_us{ timeout } {}
+      , timeout{ timeout } {}
 
   ParseOption(ParseOption const& other)            = default;
   ParseOption& operator=(ParseOption const& other) = default;
 
   ParseOption(ParseOption&& other) noexcept
       : filter{ std::move(other.filter) }
-      , timeout_us{ other.timeout_us } {}
+      , timeout{ other.timeout } {}
 
   ParseOption& operator=(ParseOption&& other) noexcept {
     if (this == &other) return *this;
     filter  = std::move(other.filter);
-    timeout_us = other.timeout_us;
+    timeout = other.timeout;
     return *this;
   }
 };

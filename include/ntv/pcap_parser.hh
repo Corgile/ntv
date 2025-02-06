@@ -31,7 +31,7 @@ private:
   void Scan();
   void DumpFlow();
   void Reassemble();
-  void WritePcap(flow_node_t const& flow, std::string_view filename);
+  void WriteSession(flow_node_t const& flow) const;
 
   pcap_t* mHandle{ nullptr };
   std::atomic_bool mStopAssemble{ false };

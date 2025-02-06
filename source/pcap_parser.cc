@@ -77,6 +77,7 @@ void PcapParser::Scan() {
     mScanCV.wait_for(guard, 10s,
                      [&] { return not mFlowMap.empty() or mStopScan; });
     for (auto const& [key, list] : mFlowMap) {
+      // TODO 用std::chrono来计算 timeout
       bool const changed{ list.back()->ArriveTime() not_eq mLastSeen.at(key) };
       if (changed and not mStopScan) { continue; } // 会话未完成
       mSession.enqueue(mFlowMap.extract(key));
@@ -95,15 +96,12 @@ void PcapParser::Scan() {
 void PcapParser::DumpFlow() {
   while (not mStopDump) {
     flow_node_t node{};
-    while (mSession.try_dequeue(node)) {
-      WritePcap(node, node.key() + ".pcap");
-    }
+    while (mSession.try_dequeue(node)) { WriteSession(node); }
     std::this_thread::sleep_for(10ms);
   }
 }
 
-void PcapParser::WritePcap(flow_node_t const& flow, // NOLINT
-                           std::string_view const filename) {
+void PcapParser::WriteSession(flow_node_t const& flow) const {
   // DLT_EN10MB表示以太网帧类型
   pcap_t* handle{ pcap_open_dead(DLT_EN10MB, 65535) };
   if (handle == nullptr) {
@@ -112,7 +110,8 @@ void PcapParser::WritePcap(flow_node_t const& flow, // NOLINT
   }
   fs::path const dir{ mParentDir / mInputFile };
   if (not fs::exists(dir)) { fs::create_directory(dir); }
-  fs::path const file{ dir / filename };
+  fs::path file{ dir / flow.key() };
+  file.append(".pcap");
   pcap_dumper_t* dumper{ pcap_dump_open(handle, file.c_str()) };
   if (dumper == nullptr) {
     XLOG_ERROR << "Error opening PCAP dumper: " << pcap_geterr(handle);
@@ -130,6 +129,7 @@ void PcapParser::WritePcap(flow_node_t const& flow, // NOLINT
 
 PcapParser::~PcapParser() {
   XLOG_INFO << "进入析构函数";
+  XLOG_INFO << "等待 mPacketQueue 队列处理";
   while (mPacketQueue.size_approx()) {
     std::this_thread::sleep_for(10ms); // 等待队列处理
   }
@@ -139,17 +139,20 @@ PcapParser::~PcapParser() {
   }
   mScanCV.notify_all(); // scanner,该醒了
 
+  XLOG_INFO << "等待 mFlowMap 处理";
   while (not mFlowMap.empty()) {
     std::this_thread::sleep_for(10ms); // 等待Scan线程处理
   }
   mStopScan = true;
   if (mScanner.joinable()) { mScanner.join(); }
 
+  XLOG_INFO << "等待 mSession 队列处理";
   while (mSession.size_approx()) {
     std::this_thread::sleep_for(10ms); // 等待队列处理
   }
   mStopDump = true;
   if (mDumper.joinable()) { mDumper.join(); }
+
   XLOG_INFO << "Last Seen: " << mLastSeen.size();
   XLOG_INFO << "Packet Queue: " << mPacketQueue.size_approx();
   XLOG_INFO << "Flow Map: " << mFlowMap.size();
