@@ -1,4 +1,4 @@
-//
+﻿//
 // xlog / config.hh
 // Created by brian on 2024-07-13.
 //

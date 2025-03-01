@@ -1,13 +1,18 @@
-//
+﻿//
 // Created by brian on 2025 Jan 31.
 //
+#ifdef WIN32
+#include <pcap.h>
+#else
 #include <netinet/ether.h>
 #include <netinet/tcp.h>
 #include <netinet/udp.h>
+#endif
 #include <sstream>
 
 #include <ntv/raw_packet.hh>
 #include <ntv/vlan_header.hh>
+#include <ntv/missing.hh>
 
 #include <xlog/api.hh>
 #define fake
@@ -45,6 +50,7 @@ auto RawPacket::GetKey() const -> std::string {
   // 解析TCP/UDP头
   peer1.ip = inet_ntoa(ip_hdr->ip_src);
   peer2.ip = inet_ntoa(ip_hdr->ip_dst);
+
   if (ip_hdr->ip_p == IPPROTO_TCP) {
     auto const tcp_hdr{ reinterpret_cast<struct tcphdr const*>(
       ip_header_start + (ip_hdr->ip_hl << 2)) };

@@ -1,4 +1,4 @@
-//
+﻿//
 // Created by brian on 2025 Jan 31.
 //
 
@@ -16,7 +16,6 @@
 
 #include <ntv/raw_packet.hh>
 #include <ntv/usings.hh>
-#include <ntv/visualizer.hh>
 
 namespace fs = std::filesystem;
 
@@ -40,7 +39,6 @@ private:
 
   fs::path mInputFile;
   fs::path mParentDir;
-  Visualizer mVisualizer;
 
   packet_queue_t mPacketQueue;
   std::thread mScanner;

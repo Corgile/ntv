@@ -1,4 +1,4 @@
-//
+﻿//
 // xlog / record.hh
 // Created by brian on 2024-06-02.
 //

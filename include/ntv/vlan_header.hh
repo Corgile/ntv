@@ -1,4 +1,4 @@
-//
+﻿//
 // Created by brian on 11/28/23.
 //
 
@@ -6,6 +6,10 @@
 #define VLAN_HEADER_HPP
 
 #include <cstdint>
+
+#ifdef WIN32
+#pragma pack(push, 1)
+#endif
 
 struct vlan_header {
   /**
@@ -18,8 +22,13 @@ struct vlan_header {
    * @endverbatim
    */
   uint16_t vlan;
-  /** Ethernet type for next layer */
   uint16_t etherType;
-} __attribute__((__packed__));
+}
+#ifndef WIN32
+__attribute__((__packed__));
+#else
+;
+#pragma pack(pop)
+#endif
 
 #endif // VLAN_HEADER_HPP

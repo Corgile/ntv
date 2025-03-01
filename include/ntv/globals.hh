@@ -1,4 +1,4 @@
-#ifndef NTV_GLOBALS_HH
+﻿#ifndef NTV_GLOBALS_HH
 #define NTV_GLOBALS_HH
 #include <ntv/globals.hh>
 #include <ntv/parse_option.hh>

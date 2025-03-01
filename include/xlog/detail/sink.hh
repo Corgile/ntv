@@ -1,4 +1,4 @@
-//
+﻿//
 // xlog / logger.hh
 // Created by brian on 2024-06-02.
 //
@@ -110,7 +110,7 @@ enum class color_type : int {
   white_bright
 };
 
-void windows_set_color(color_type fg, color_type bg) {
+inline void windows_set_color(color_type fg, color_type bg) {
   auto handle = GetStdHandle(STD_OUTPUT_HANDLE);
   if (handle != nullptr) {
     CONSOLE_SCREEN_BUFFER_INFO info{};

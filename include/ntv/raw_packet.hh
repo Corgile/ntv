@@ -1,4 +1,4 @@
-//
+﻿//
 // Created by brian on 11/28/23.
 //
 
@@ -8,8 +8,13 @@
 #include <memory>
 #include <string>
 
+#ifdef WIN32
+#include <winsock.h>
+#else
 #include <netinet/in.h>
 #include <netinet/ip.h>
+#endif
+
 #include <pcap/pcap.h>
 
 #include <moodycamel/concurrent_queue.hh>

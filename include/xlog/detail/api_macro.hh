@@ -1,4 +1,4 @@
-//
+﻿//
 // xlog / api_macro.hh
 // Created by brian on 2024-06-04.
 //

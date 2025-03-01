@@ -1,28 +1,41 @@
-//
+﻿//
 // Created by brian on 2025 Jan 31.
 //
 
 #include <ntv/globals.hh>
 #include <ntv/pcap_parser.hh>
+#include <pcap/pcap.h>
 #include <xlog/api.hh>
 
+#ifdef _MSC_VER
+#define LambdaRetType
+#else
+#define LambdaRetType ->void
+#endif
+
 PcapParser::PcapParser() {
-  mAssembleThreads.emplace_back([&] -> void { Reassemble(); });
-  mAssembleThreads.emplace_back([&] -> void { Reassemble(); });
-  mAssembleThreads.emplace_back([&] -> void { Reassemble(); });
-  mAssembleThreads.emplace_back([&] -> void { Reassemble(); });
-  mScanner = std::thread{ [&] -> void { Scan(); } };
-  mDumper  = std::thread{ [&] -> void { DumpFlow(); } };
+  mAssembleThreads.emplace_back([&] LambdaRetType { Reassemble(); });
+  mAssembleThreads.emplace_back([&] LambdaRetType { Reassemble(); });
+  mAssembleThreads.emplace_back([&] LambdaRetType { Reassemble(); });
+  mAssembleThreads.emplace_back([&] LambdaRetType { Reassemble(); });
+  mScanner = std::thread{ [&] LambdaRetType { Scan(); } };
+  mDumper  = std::thread{ [&] LambdaRetType { DumpFlow(); } };
 }
 
 void PcapParser::ParseFile(fs::path const& pcap_file) {
-  mInputFile         = pcap_file.stem();
-  mParentDir         = pcap_file.parent_path();
+  mInputFile = pcap_file.stem();
+  mParentDir = pcap_file.parent_path();
+#ifdef WIN32
+  using open_offline = pcap_t* (*)(char const*, char*);
+  open_offline const open_func{ pcap_open_offline };
+#else
   using open_offline = pcap_t* (*)(char const*, u_int, char*);
   open_offline const open_func{ pcap_open_offline_with_tstamp_precision };
+#endif
+
   std::array<char, PCAP_ERRBUF_SIZE> err_buff{};
   // PCAP_TSTAMP_PRECISION_MICRO, PCAP_TSTAMP_PRECISION_NANO
-  mHandle = open_func(pcap_file.c_str(), 0, err_buff.data());
+  mHandle = open_func(pcap_file.string().c_str(), err_buff.data());
   if (mHandle == nullptr) {
     XLOG_ERROR << err_buff;
     exit(EXIT_FAILURE);
@@ -112,7 +125,7 @@ void PcapParser::WriteSession(flow_node_t const& flow) const {
   if (not fs::exists(dir)) { fs::create_directory(dir); }
   fs::path file{ dir / flow.key() };
   file.append(".pcap");
-  pcap_dumper_t* dumper{ pcap_dump_open(handle, file.c_str()) };
+  pcap_dumper_t* dumper{ pcap_dump_open(handle, file.string().c_str()) };
   if (dumper == nullptr) {
     XLOG_ERROR << "Error opening PCAP dumper: " << pcap_geterr(handle);
     pcap_close(handle);
