@@ -10,9 +10,9 @@
 #endif
 #include <sstream>
 
+#include <ntv/missing.hh>
 #include <ntv/raw_packet.hh>
 #include <ntv/vlan_header.hh>
-#include <ntv/missing.hh>
 
 #include <xlog/api.hh>
 #define fake

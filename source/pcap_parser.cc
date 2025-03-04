@@ -125,19 +125,24 @@ void PcapParser::WriteSession(flow_node_t const& flow) const {
   if (not fs::exists(dir)) { fs::create_directory(dir); }
   fs::path file{ dir / flow.key() };
   file.append(".pcap");
+
+  global::fileSemaphore.acquire();
   pcap_dumper_t* dumper{ pcap_dump_open(handle, file.string().c_str()) };
   if (dumper == nullptr) {
     XLOG_ERROR << "Error opening PCAP dumper: " << pcap_geterr(handle);
     pcap_close(handle);
+    global::fileSemaphore.release();
     return;
   }
   for (auto const& packet : flow.mapped()) {
     pcap_pkthdr header{ packet->info_hdr };
     pcap_dump(reinterpret_cast<u_char*>(dumper), &header, packet->Data());
   }
+  pcap_dump_flush(dumper);
   // 关闭PCAP文件
   pcap_dump_close(dumper);
   pcap_close(handle);
+  global::fileSemaphore.release();
 }
 
 PcapParser::~PcapParser() {
