@@ -118,45 +118,41 @@ void PcapParser::DumpFlow() {
 }
 
 void PcapParser::WriteSession(flow_node_t const& flow) const {
-  // static int k = 0;
-#define SPLIT_SESSION_PCAP
-#ifdef SPLIT_SESSION_PCAP
-  // DLT_EN10MB表示以太网帧类型
-  pcap_t* handle{ pcap_open_dead(DLT_EN10MB, 65535) };
-  if (handle == nullptr) {
-    XLOG_ERROR << "Error opening PCAP handle: " << pcap_geterr(handle);
-    return;
-  }
-  fs::path const dir{ mParentDir / mInputFile };
-  if (not fs::exists(dir)) { fs::create_directory(dir); }
-  fs::path file{ dir / flow.key() };
-  file.replace_extension(".pcap");
+  if (global::opt.output == "pcap") {
+    // DLT_EN10MB表示以太网帧类型
+    pcap_t* handle{ pcap_open_dead(DLT_EN10MB, 65535) };
+    if (handle == nullptr) {
+      XLOG_ERROR << "Error opening PCAP handle: " << pcap_geterr(handle);
+      return;
+    }
+    fs::path const dir{ mParentDir / mInputFile };
+    if (not fs::exists(dir)) { fs::create_directory(dir); }
+    fs::path file{ dir / flow.key() };
+    file.replace_extension(".pcap");
 
-  global::fileSemaphore.acquire();
-  pcap_dumper_t* dumper{ pcap_dump_open(handle, file.string().c_str()) };
-  if (dumper == nullptr) {
-    XLOG_ERROR << "Error opening PCAP dumper with filename: " << file
-               << pcap_geterr(handle);
+    global::fileSemaphore.acquire();
+    pcap_dumper_t* dumper{ pcap_dump_open(handle, file.string().c_str()) };
+    if (dumper == nullptr) {
+      XLOG_ERROR << "Error opening PCAP dumper with filename: " << file
+                 << pcap_geterr(handle);
+      pcap_close(handle);
+      global::fileSemaphore.release();
+      return;
+    }
+    for (auto const& packet : flow.mapped()) {
+      pcap_pkthdr header{ packet->info_hdr };
+      pcap_dump(reinterpret_cast<u_char*>(dumper), &header, packet->Data());
+    }
+    pcap_dump_flush(dumper);
+    // 关闭PCAP文件
+    pcap_dump_close(dumper);
     pcap_close(handle);
     global::fileSemaphore.release();
-    return;
+  } else if (global::opt.output == "image") {
+    MTF mtf{ flow.mapped() };
+    auto const png{ mParentDir / mOutputDir / flow.key() };
+    cv::imwrite(png.string() + ".png", mtf.getMatrix());
   }
-  for (auto const& packet : flow.mapped()) {
-    pcap_pkthdr header{ packet->info_hdr };
-    pcap_dump(reinterpret_cast<u_char*>(dumper), &header, packet->Data());
-  }
-  pcap_dump_flush(dumper);
-  // 关闭PCAP文件
-  pcap_dump_close(dumper);
-  pcap_close(handle);
-  global::fileSemaphore.release();
-#else
-  // TODO Visualization
-  MTF mtf{ flow.mapped() };
-  auto const png{ mParentDir / mOutputDir / flow.key() };
-  cv::imwrite(png.string() + ".png", mtf.getMatrix());
-  // if (k++ == 10) { exit(EXIT_SUCCESS); }
-#endif
 }
 
 PcapParser::~PcapParser() {
