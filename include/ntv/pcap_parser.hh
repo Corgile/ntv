@@ -38,6 +38,7 @@ private:
   std::atomic_bool mStopDump{ false };
 
   fs::path mInputFile;
+  fs::path mOutputDir;
   fs::path mParentDir;
 
   packet_queue_t mPacketQueue;

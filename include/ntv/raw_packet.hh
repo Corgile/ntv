@@ -9,7 +9,7 @@
 #include <string>
 
 #ifdef WIN32
-#include <winsock.h>
+#include <ntv/missing.hh>
 #else
 #include <netinet/in.h>
 #include <netinet/ip.h>
@@ -44,8 +44,14 @@ struct RawPacket {
    * @return \p std::string
    */
   [[nodiscard]] auto GetKey() const -> std::string;
+  /// 字节数据的开始地址
+  /// @return const_iterator
   [[nodiscard]] auto Data() const -> u_char const*;
+  /// 字节数据的开始地址
+  /// @return const_iterator
   [[nodiscard]] auto Beg() const -> ustring_t::const_iterator;
+  /// 字节数据的末尾
+  /// @return const_iterator
   [[nodiscard]] auto End() const -> ustring_t::const_iterator;
 };
 

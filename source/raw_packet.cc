@@ -19,7 +19,10 @@
 
 fake RawPacket::RawPacket(pcap_pkthdr const* pkthdr, u_char const* packet)
     : info_hdr{ *pkthdr } // make a copy of the packet data
-    , byte_arr{ packet, pkthdr->caplen } {}
+{
+  byte_arr.reserve(pkthdr->caplen);
+  byte_arr.assign(packet, packet + pkthdr->caplen);
+}
 auto RawPacket::ArriveTime() const -> int64_t {
   std::chrono::seconds const sec{ info_hdr.ts.tv_sec };
   std::chrono::microseconds const usec{ info_hdr.ts.tv_usec };
@@ -39,6 +42,7 @@ auto RawPacket::GetKey() const -> std::string {
   // VLAN 标签处理：以太网帧长度超过14字节说明有VLAN标签
   if (ntohs(eth_hdr->ether_type) == ETHERTYPE_VLAN) { // VLAN Tag is present
     ip_header_start += sizeof(vlan_header);           // 跳过4字节VLAN标签
+    XLOG_TRACE << "VLAN";
   }
   if (ntohs(eth_hdr->ether_type) == ETHERTYPE_IPV6) { return {}; }
   // 解析IP头

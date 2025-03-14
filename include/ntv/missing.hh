@@ -1,4 +1,4 @@
-//
+﻿//
 // Created by corgi on 2025 Mar 01.
 //
 
@@ -6,7 +6,8 @@
 #define MISSING_HH
 
 #ifdef _WIN32
-#include <stdint.h>
+#include <winsock2.h>
+#include <ws2tcpip.h>
 #define ETH_ALEN 6
 // 定义以太网类型宏
 #define ETHERTYPE_VLAN 0x8100
@@ -15,25 +16,29 @@
 // 定义 IP 协议类型
 #define IS_LITTLE_ENDIAN 1
 #define IS_BIG_ENDIAN 0
-#define IPPROTO_IPV4 4
 
 #pragma pack(push, 1)
 
+#ifndef NTV_ETH_HDR_DEF
+#define NTV_ETH_HDR_DEF
 /* Ethernet 头结构定义 */
 typedef struct ether_header {
   unsigned char h_dest[ETH_ALEN];   // 目的 MAC 地址
   unsigned char h_source[ETH_ALEN]; // 源 MAC 地址
   uint16_t ether_type;              // 上层协议类型（网络字节序）
 } ethhdr;
+#endif // NTV_ETH_HDR_DEF
 
 /* IP 头结构定义 */
+#ifndef NTV_IP_HDR_DEF
+#define NTV_IP_HDR_DEF
 typedef struct ip {
 #if IS_LITTLE_ENDIAN
-  unsigned int ip_hl : 4;   // IP 首部长度
-  unsigned int version : 4; // 版本号
+  uint8_t ip_hl : 4;   // IP 首部长度
+  uint8_t version : 4; // 版本号
 #elif IS_BIG_ENDIAN
-  unsigned int version : 4;
-  unsigned int ihl : 4;
+  uint8_t version : 4;
+  uint8_t ihl : 4;
 #else
 #error "请定义 IS_LITTLE_ENDIAN 或 IS_BIG_ENDIAN"
 #endif
@@ -48,7 +53,10 @@ typedef struct ip {
   in_addr ip_dst;    // 目的 IP 地址
   // 可选字段（如果存在）紧跟其后
 } iphdr;
+#endif // NTV_IP_HDR_DEF
 
+#ifndef NTV_TCP_HDR_DEF
+#define NTV_TCP_HDR_DEF
 /* TCP 头结构定义 */
 typedef struct tcphdr {
   uint16_t th_sport; // 源端口
@@ -69,7 +77,10 @@ typedef struct tcphdr {
   uint16_t check;   // 校验和
   uint16_t urg_ptr; // 紧急指针
 } tcphdr;
+#endif // NTV_TCP_HDR_DEF
 
+#ifndef NTV_UDP_HDR_DEF
+#define NTV_UDP_HDR_DEF
 /* UDP 头结构定义 */
 typedef struct udphdr {
   uint16_t uh_sport; // 源端口
@@ -77,8 +88,12 @@ typedef struct udphdr {
   uint16_t len;      // UDP 长度
   uint16_t check;    // 校验和
 } udphdr;
+#endif // NTV_UDP_HDR_DEF
 
 #pragma pack(pop)
+
+#else
+#include <netinet/in.h>
 #endif
 
-#endif // MISSING_HH
+#endif

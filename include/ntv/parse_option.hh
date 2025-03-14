@@ -5,6 +5,7 @@
 #ifndef PARSE_OPTION_HH
 #define PARSE_OPTION_HH
 #include <chrono>
+#include <filesystem>
 #include <string>
 #include <utility>
 
@@ -12,6 +13,7 @@ using namespace std::chrono_literals;
 struct ParseOption {
   std::string filter{ "ip or vlan" };
   decltype(10ms) timeout{ 10s };
+  std::filesystem::path output{};
 
   ParseOption() = default;
   ParseOption(std::string filter, int64_t const timeout)

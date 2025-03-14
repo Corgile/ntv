@@ -3,6 +3,7 @@
 //
 
 #include <ntv/globals.hh>
+#include <ntv/mtf.hh>
 #include <ntv/pcap_parser.hh>
 #include <pcap/pcap.h>
 #include <xlog/api.hh>
@@ -23,8 +24,10 @@ PcapParser::PcapParser() {
 }
 
 void PcapParser::ParseFile(fs::path const& pcap_file) {
-  mInputFile = pcap_file.stem();
+  mInputFile = pcap_file;
   mParentDir = pcap_file.parent_path();
+  mOutputDir = mInputFile.stem();
+  mInputFile = mInputFile.stem(); // TODO 优化
 #ifdef WIN32
   using open_offline = pcap_t* (*)(char const*, char*);
   open_offline const open_func{ pcap_open_offline };
@@ -115,6 +118,9 @@ void PcapParser::DumpFlow() {
 }
 
 void PcapParser::WriteSession(flow_node_t const& flow) const {
+  // static int k = 0;
+#define SPLIT_SESSION_PCAP
+#ifdef SPLIT_SESSION_PCAP
   // DLT_EN10MB表示以太网帧类型
   pcap_t* handle{ pcap_open_dead(DLT_EN10MB, 65535) };
   if (handle == nullptr) {
@@ -124,12 +130,13 @@ void PcapParser::WriteSession(flow_node_t const& flow) const {
   fs::path const dir{ mParentDir / mInputFile };
   if (not fs::exists(dir)) { fs::create_directory(dir); }
   fs::path file{ dir / flow.key() };
-  file.append(".pcap");
+  file.replace_extension(".pcap");
 
   global::fileSemaphore.acquire();
   pcap_dumper_t* dumper{ pcap_dump_open(handle, file.string().c_str()) };
   if (dumper == nullptr) {
-    XLOG_ERROR << "Error opening PCAP dumper: " << pcap_geterr(handle);
+    XLOG_ERROR << "Error opening PCAP dumper with filename: " << file
+               << pcap_geterr(handle);
     pcap_close(handle);
     global::fileSemaphore.release();
     return;
@@ -143,6 +150,13 @@ void PcapParser::WriteSession(flow_node_t const& flow) const {
   pcap_dump_close(dumper);
   pcap_close(handle);
   global::fileSemaphore.release();
+#else
+  // TODO Visualization
+  MTF mtf{ flow.mapped() };
+  auto const png{ mParentDir / mOutputDir / flow.key() };
+  cv::imwrite(png.string() + ".png", mtf.getMatrix());
+  // if (k++ == 10) { exit(EXIT_SUCCESS); }
+#endif
 }
 
 PcapParser::~PcapParser() {
