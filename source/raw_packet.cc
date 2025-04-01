@@ -8,6 +8,7 @@
 #include <netinet/tcp.h>
 #include <netinet/udp.h>
 #endif
+#include <ntv/flow_key.hh>
 #include <sstream>
 
 #include <ntv/missing.hh>
@@ -84,6 +85,46 @@ auto RawPacket::Beg() const -> ustring_t::const_iterator {
 }
 auto RawPacket::End() const -> ustring_t::const_iterator {
   return byte_arr.end();
+}
+
+std::optional<FlowKey> RawPacket::GetFlowKey() const {
+  u_char const* packet_data = byte_arr.data();
+  auto const* eth_hdr = reinterpret_cast<ether_header const*>(packet_data);
+  u_char const* ip_header_start = packet_data + sizeof(ether_header);
+
+  if (ntohs(eth_hdr->ether_type) == ETHERTYPE_VLAN) {
+    ip_header_start += sizeof(vlan_header);
+  }
+
+  if (ntohs(eth_hdr->ether_type) == ETHERTYPE_IPV6) return std::nullopt;
+
+  auto const* ip_hdr = reinterpret_cast<ip const*>(ip_header_start);
+  if (ip_hdr->ip_p != IPPROTO_TCP && ip_hdr->ip_p != IPPROTO_UDP)
+    return std::nullopt;
+
+  uint32_t ip1 = ntohl(ip_hdr->ip_src.s_addr);
+  uint32_t ip2 = ntohl(ip_hdr->ip_dst.s_addr);
+  uint16_t port1, port2;
+
+  if (ip_hdr->ip_p == IPPROTO_TCP) {
+    auto const* tcp_hdr =
+      reinterpret_cast<tcphdr const*>(ip_header_start + (ip_hdr->ip_hl << 2));
+    port1 = ntohs(tcp_hdr->th_sport);
+    port2 = ntohs(tcp_hdr->th_dport);
+  } else {
+    auto const* udp_hdr =
+      reinterpret_cast<udphdr const*>(ip_header_start + (ip_hdr->ip_hl << 2));
+    port1 = ntohs(udp_hdr->uh_sport);
+    port2 = ntohs(udp_hdr->uh_dport);
+  }
+
+  // 规范化：小的IP+port在前
+  if (ip1 > ip2 || (ip1 == ip2 && port1 > port2)) {
+    std::swap(ip1, ip2);
+    std::swap(port1, port2);
+  }
+
+  return FlowKey{ ip1, ip2, port1, port2, ip_hdr->ip_p };
 }
 
 // peer
