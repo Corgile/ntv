@@ -1,26 +1,50 @@
-﻿//
-// Created by brian on 2025 Jan 31.
-//
-
-#include <ntv/globals.hh>
+﻿#include <ntv/globals.hh>
 #include <ntv/mtf.hh>
 #include <ntv/pcap_parser.hh>
+#include <opencv2/opencv.hpp>
 #include <pcap/pcap.h>
 #include <xlog/api.hh>
 
-#ifdef _MSC_VER
-#define LambdaRetType
-#else
-#define LambdaRetType ->void
-#endif
+using namespace std::chrono_literals;
+namespace fs = std::filesystem;
 
 PcapParser::PcapParser() {
-  mAssembleThreads.emplace_back([&] LambdaRetType { Reassemble(); });
-  mAssembleThreads.emplace_back([&] LambdaRetType { Reassemble(); });
-  mAssembleThreads.emplace_back([&] LambdaRetType { Reassemble(); });
-  mAssembleThreads.emplace_back([&] LambdaRetType { Reassemble(); });
-  mScanner = std::thread{ [&] LambdaRetType { Scan(); } };
-  mDumper  = std::thread{ [&] LambdaRetType { DumpFlow(); } };
+  for (int i = 0; i < 4; ++i) {
+    mAssembleThreads.emplace_back(
+      [this](std::stop_token st) { Reassemble(st); });
+  }
+  mScanner = std::jthread([this](std::stop_token const& st) { Scan(st); });
+  mDumper  = std::jthread([this](std::stop_token const& st) { DumpFlow(st); });
+  mWriter =
+    std::jthread([this](std::stop_token const& st) { AsyncWriter(st); });
+}
+
+PcapParser::~PcapParser() {
+  XLOG_INFO << "进入析构函数";
+
+  // 等 packet queue 清空
+  while (mPacketQueue.size_approx() > 0) { std::this_thread::sleep_for(10ms); }
+  XLOG_INFO << "mPacketQueue Empty";
+
+  // join 自动完成（jthread 析构时自动停止+join）
+
+  // 等待 mSession 清空
+  while (mSession.size_approx() > 0) { std::this_thread::sleep_for(10ms); }
+
+  // 等写队列清空
+  while (true) {
+    std::scoped_lock lock{ mWriteMutex };
+    if (mWriteQueue.empty()) break;
+    std::this_thread::sleep_for(10ms);
+  }
+
+  mWriteCV.notify_all();
+
+  XLOG_INFO << "Last Seen: " << mLastSeen.size();
+  XLOG_INFO << "Packet Queue: " << mPacketQueue.size_approx();
+  XLOG_INFO << "Flow Map: " << mFlowMap.size();
+  XLOG_INFO << "mSession: " << mSession.size_approx();
+  XLOG_INFO << __FUNCSIG__ << " Done";
 }
 
 void PcapParser::ParseFile(fs::path const& pcap_file) {
@@ -63,126 +87,129 @@ void PcapParser::ParseFile(fs::path const& pcap_file) {
   pcap_close(mHandle);
 }
 
-void PcapParser::DeadHandler(u_char* user_data, pcap_pkthdr const* pkthdr,
-                             u_char const* packet) {
-  auto const this_{ reinterpret_cast<PcapParser*>(user_data) };
-  this_->mPacketQueue.enqueue(std::make_shared<RawPacket>(pkthdr, packet));
-}
-
-/**
- * 将数据包重新组装成会话
- */
-void PcapParser::Reassemble() {
-  while (not mStopAssemble) {
+void PcapParser::Reassemble(std::stop_token const& stop) {
+  XLOG_INFO << "Reassemble thread started";
+  while (!stop.stop_requested()) {
     raw_packet_t newer{};
     while (mPacketQueue.try_dequeue(newer)) {
-      auto const key{ newer->GetKey() };
-      if (key.empty()) { continue; }
-      std::scoped_lock guard{ mMutex };
-      if (not mFlowMap.contains(key)) { mFlowMap.insert({ key, {} }); }
+      auto key = newer->GetKey();
+      if (key.empty()) continue;
+      std::scoped_lock lock{ mMutex };
       mLastSeen[key] = newer->ArriveTime();
-      mFlowMap.at(key).emplace_back(newer);
+      mFlowMap[key].emplace_back(std::move(newer));
+      mScanCV.notify_all();
     }
     std::this_thread::sleep_for(10ms);
   }
+  XLOG_INFO << "Reassemble exiting";
 }
 
-void PcapParser::Scan() {
-  while (not mStopScan) {
-    std::unique_lock guard{ mMutex };
-    mScanCV.wait_for(guard, 10s,
-                     [&] { return not mFlowMap.empty() or mStopScan; });
-    for (auto const& [key, list] : mFlowMap) {
-      // TODO 用std::chrono来计算 timeout
-      bool const changed{ list.back()->ArriveTime() not_eq mLastSeen.at(key) };
-      if (changed and not mStopScan) { continue; } // 会话未完成
-      mSession.enqueue(mFlowMap.extract(key));
-      mLastSeen.extract(key);
-      mFlowMap.erase(key);
+void PcapParser::Scan(std::stop_token const& stop) {
+  XLOG_INFO << "Scan thread started";
+  while (!stop.stop_requested()) {
+    std::unique_lock lock{ mMutex };
+    mScanCV.wait_for(
+      lock, 10s, [&] { return !mFlowMap.empty() || stop.stop_requested(); });
+
+    for (auto it = mFlowMap.begin(); it != mFlowMap.end();) {
+      if (it->second.empty()) {
+        ++it;
+        continue;
+      }
+
+      bool changed = it->second.back()->ArriveTime() != mLastSeen[it->first];
+      if (changed) {
+        ++it;
+        continue;
+      }
+
+      mLastSeen.erase(it->first);
+      mSession.enqueue(mFlowMap.extract(it++));
     }
   }
-  std::scoped_lock guard{ mMutex };
-  for (auto it{ mFlowMap.begin() }; it not_eq mFlowMap.end();) {
-    mSession.enqueue(mFlowMap.extract(it));
-    it = mFlowMap.erase(it);
+
+  std::scoped_lock lock{ mMutex };
+  for (auto it = mFlowMap.begin(); it != mFlowMap.end();) {
+    mSession.enqueue(mFlowMap.extract(it++));
   }
   mLastSeen.clear();
+  XLOG_INFO << "Scan exiting";
 }
 
-void PcapParser::DumpFlow() {
-  while (not mStopDump) {
+void PcapParser::DumpFlow(std::stop_token const& stop) {
+  XLOG_INFO << "DumpFlow thread started";
+  while (!stop.stop_requested()) {
     flow_node_t node{};
-    while (mSession.try_dequeue(node)) { WriteSession(node); }
+    while (mSession.try_dequeue(node)) {
+      WriteSessionAsync(std::move(node));
+      // WriteSession(std::move(node));
+    }
     std::this_thread::sleep_for(10ms);
   }
+  XLOG_INFO << "DumpFlow exiting";
 }
 
-void PcapParser::WriteSession(flow_node_t const& flow) const {
-  if (global::opt.output == "pcap") {
-    // DLT_EN10MB表示以太网帧类型
-    pcap_t* handle{ pcap_open_dead(DLT_EN10MB, 65535) };
-    if (handle == nullptr) {
-      XLOG_ERROR << "Error opening PCAP handle: " << pcap_geterr(handle);
-      return;
-    }
-    fs::path const dir{ mParentDir / mInputFile };
-    if (not fs::exists(dir)) { fs::create_directory(dir); }
-    fs::path file{ dir / flow.key() };
-    file.replace_extension(".pcap");
+void PcapParser::AsyncWriter(std::stop_token const& stop) {
+  XLOG_INFO << "AsyncWriter thread started";
 
-    global::fileSemaphore.acquire();
-    pcap_dumper_t* dumper{ pcap_dump_open(handle, file.string().c_str()) };
-    if (dumper == nullptr) {
-      XLOG_ERROR << "Error opening PCAP dumper with filename: " << file
-                 << pcap_geterr(handle);
-      pcap_close(handle);
-      global::fileSemaphore.release();
+  while (true) {
+    flow_node_t node;
+
+    {
+      std::unique_lock lock{ mWriteMutex };
+      mWriteCV.wait(
+        lock, [&] { return !mWriteQueue.empty() || stop.stop_requested(); });
+
+      if (mWriteQueue.empty()) {
+        if (stop.stop_requested()) break;
+        continue;
+      }
+
+      node = std::move(mWriteQueue.front());
+      mWriteQueue.pop();
+    }
+
+    WriteSession(node);
+  }
+
+  XLOG_INFO << "AsyncWriter exiting";
+}
+
+void PcapParser::WriteSessionAsync(flow_node_t&& node) {
+  {
+    std::scoped_lock lock{ mWriteMutex };
+    mWriteQueue.push(std::move(node));
+  }
+  mWriteCV.notify_one(); // ✅ 只唤醒一个就行
+}
+
+void PcapParser::WriteSession(flow_node_t& flow) {
+  fs::path save_path = fs::path{ global::opt.outdir } / flow.key();
+  save_path.replace_extension(".png");
+
+  try {
+    cv::Mat mat;
+    if (global::opt.outfmt == "tile") {
+      GrayScale gray(flow.mapped());
+      mat = gray.Matrix();
+    } else if (global::opt.outfmt == "mtf") {
+      MTF mtf(flow.mapped());
+      mat = mtf.getMatrix();
+    } else {
+      XLOG_ERROR << "未知输出格式: " << global::opt.outfmt;
       return;
     }
-    for (auto const& packet : flow.mapped()) {
-      pcap_pkthdr header{ packet->info_hdr };
-      pcap_dump(reinterpret_cast<u_char*>(dumper), &header, packet->Data());
+
+    if (!cv::imwrite(save_path.string(), mat)) {
+      XLOG_ERROR << "保存失败: " << save_path;
     }
-    pcap_dump_flush(dumper);
-    // 关闭PCAP文件
-    pcap_dump_close(dumper);
-    pcap_close(handle);
-    global::fileSemaphore.release();
-  } else if (global::opt.output == "image") {
-    MTF mtf{ flow.mapped() };
-    auto const png{ mParentDir / mOutputDir / flow.key() };
-    cv::imwrite(png.string() + ".png", mtf.getMatrix());
+  } catch (std::exception const& e) {
+    XLOG_ERROR << "WriteSession 异常: " << e.what();
   }
 }
 
-PcapParser::~PcapParser() {
-  XLOG_INFO << "进入析构函数";
-  XLOG_INFO << "等待 mPacketQueue 队列处理";
-  while (mPacketQueue.size_approx()) {
-    std::this_thread::sleep_for(10ms); // 等待队列处理
-  }
-  mStopAssemble = true;
-  for (auto& t : mAssembleThreads) {
-    if (t.joinable()) { t.join(); }
-  }
-  mScanCV.notify_all(); // scanner,该醒了
-
-  XLOG_INFO << "等待 mFlowMap 处理";
-  while (not mFlowMap.empty()) {
-    std::this_thread::sleep_for(10ms); // 等待Scan线程处理
-  }
-  mStopScan = true;
-  if (mScanner.joinable()) { mScanner.join(); }
-
-  XLOG_INFO << "等待 mSession 队列处理";
-  while (mSession.size_approx()) {
-    std::this_thread::sleep_for(10ms); // 等待队列处理
-  }
-  mStopDump = true;
-  if (mDumper.joinable()) { mDumper.join(); }
-
-  XLOG_INFO << "Last Seen: " << mLastSeen.size();
-  XLOG_INFO << "Packet Queue: " << mPacketQueue.size_approx();
-  XLOG_INFO << "Flow Map: " << mFlowMap.size();
-  XLOG_INFO << "mSession: " << mSession.size_approx();
+void PcapParser::DeadHandler(u_char* user_data, const pcap_pkthdr* pkthdr,
+                             const u_char* packet) {
+  auto* parser = reinterpret_cast<PcapParser*>(user_data);
+  parser->mPacketQueue.enqueue(std::make_shared<RawPacket>(pkthdr, packet));
 }

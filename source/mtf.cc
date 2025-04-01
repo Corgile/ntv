@@ -2,6 +2,8 @@
 // Created by corgi on 2025 Mar 14.
 //
 
+#include <utility>
+
 #include "ntv/mtf.hh"
 
 MTF::MTF(const packet_list_t& packets, int cols) {
@@ -90,3 +92,24 @@ cv::Mat MTF::tileImages(const std::vector<cv::Mat>& images, const int cols,
   cv::vconcat(rows, tiled);
   return tiled; // 尺寸为 (cols×dim) x (cols×dim)
 }
+cv::Mat GrayScale::Matrix() const {
+  std::vector<uchar> pixels;
+  pixels.reserve(m_width * m_width);
+
+  // 依次将每个数据包的字节添加到 pixels 中
+  for (const auto& pkt : m_packets) {
+    if (!pkt) continue;
+    pixels.insert(pixels.end(), pkt->byte_arr.begin(), pkt->byte_arr.end());
+  }
+
+  // 根据目标像素数进行填充或截断
+  pixels.resize(m_width * m_width, 0);
+
+  // 利用 pixels 构造一个 m_width x m_width 的单通道灰度图
+  cv::Mat img{ m_width, m_width, CV_8UC1, pixels.data() };
+  return img.clone(); // 克隆一份，确保数据独立
+}
+
+GrayScale::GrayScale(packet_list_t packets, int width)
+    : m_packets{ std::move(packets) }
+    , m_width(width) {}

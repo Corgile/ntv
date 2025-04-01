@@ -1,55 +1,57 @@
-﻿//
-// Created by brian on 2025 Jan 31.
-//
+﻿#pragma once
 
-#ifndef PCAP_PARSER_HH
-#define PCAP_PARSER_HH
-
-#include <atomic>
-#include <condition_variable>
-#include <filesystem>
+#include <string>
+#include <list>
 #include <map>
-#include <thread>
-#include <vector>
-
-#include <pcap/pcap.h>
-
+#include <queue>
+#include <filesystem>
+#include <memory>
+#include <mutex>
+#include <condition_variable>
+#include <moodycamel/concurrent_queue.hh>
 #include <ntv/raw_packet.hh>
-#include <ntv/usings.hh>
-
-namespace fs = std::filesystem;
 
 class PcapParser {
 public:
   PcapParser();
   ~PcapParser();
-  void ParseFile(fs::path const& pcap_file);
+
+  void ParseFile(std::filesystem::path const& pcap_file);
+  static void DeadHandler(u_char* user_data, const pcap_pkthdr* pkthdr, const u_char* packet);
 
 private:
-  static void DeadHandler(u_char*, pcap_pkthdr const*, u_char const*);
-  void Scan();
-  void DumpFlow();
-  void Reassemble();
-  void WriteSession(flow_node_t const& flow) const;
+  using raw_packet_t = std::shared_ptr<RawPacket>;
+  using packet_list_t = std::list<raw_packet_t>;
+  using flow_node_t = std::map<std::string, packet_list_t>::node_type;
 
-  pcap_t* mHandle{ nullptr };
-  std::atomic_bool mStopAssemble{ false };
-  std::atomic_bool mStopScan{ false };
-  std::atomic_bool mStopDump{ false };
+  void Reassemble(std::stop_token const& stop);
+  void Scan(std::stop_token const& stop);
+  void DumpFlow(std::stop_token const& stop);
+  void AsyncWriter(std::stop_token const& stop);
 
-  fs::path mInputFile;
-  fs::path mOutputDir;
-  fs::path mParentDir;
+  void WriteSessionAsync(flow_node_t&& node);
+  void WriteSession(flow_node_t& node);
 
-  packet_queue_t mPacketQueue;
-  std::thread mScanner;
-  std::thread mDumper;
-  std::vector<std::thread> mAssembleThreads;
-  std::mutex mMutex;
-  std::condition_variable mScanCV;
-  std::map<std::string, packet_list_t> mFlowMap;
+  // 数据结构
+  moodycamel::ConcurrentQueue<raw_packet_t> mPacketQueue;
   moodycamel::ConcurrentQueue<flow_node_t> mSession;
-  std::map<std::string, int64_t> mLastSeen;
-};
+  std::map<std::string, packet_list_t> mFlowMap;
+  std::map<std::string, uint64_t> mLastSeen;
 
-#endif // PCAP_PARSER_HH
+  // 异步写队列
+  std::queue<flow_node_t> mWriteQueue;
+  std::mutex mWriteMutex;
+  std::condition_variable_any mWriteCV;
+
+  // 多线程
+  std::vector<std::jthread> mAssembleThreads;
+  std::jthread mScanner;
+  std::jthread mDumper;
+  std::jthread mWriter;
+
+  std::mutex mMutex;
+  std::condition_variable_any mScanCV;
+
+  std::filesystem::path mInputFile, mParentDir, mOutputDir;
+  pcap_t* mHandle = nullptr;
+};
