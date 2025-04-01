@@ -15,7 +15,6 @@ PcapParser::PcapParser() {
       std::jthread([this, i](std::stop_token st) { RunShard(i, st); });
   }
 
-  // mWriterThread = std::jthread([this](std::stop_token st) { RunWriter(st); });
   for (int i = 0; i < WRITER_THREAD_COUNT; ++i) {
     mWriterThreads.emplace_back([this](std::stop_token st) { RunWriter(st); });
   }
