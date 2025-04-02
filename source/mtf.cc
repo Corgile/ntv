@@ -12,11 +12,7 @@ MTF::MTF(const packet_list_t& packets, int cols) {
     auto transitions = processPacket(packet);
     matrices.push_back(computeTransitionMatrix(transitions));
   }
-
-  // 生成 cols×cols 的网格，不足补零，超出截断
-  cv::Mat tiled_float = tileImages(matrices, cols, 16);
-
-  // 转换为8位灰度图（0-255）
+  const cv::Mat tiled_float{ tileImages(matrices, cols, 16) };
   tiled_float.convertTo(matrix_, CV_8UC1, 255.0);
 }
 cv::Mat MTF::getMatrix() const { return matrix_; }
@@ -44,70 +40,49 @@ std::vector<int> MTF::processPacket(const raw_packet_t& packet) {
 
   return transitions;
 }
-cv::Mat MTF::computeTransitionMatrix(const std::vector<int>& transitions) {
-  cv::Mat mat = cv::Mat::zeros(16, 16, CV_32FC1);
-  if (transitions.size() < 2) return mat;
 
-  // 统计状态转移次数
+cv::Mat MTF::computeTransitionMatrix(const std::vector<int>& transitions) {
+  cv::Mat mat{ cv::Mat::zeros(16, 16, CV_32FC1) };
+  if (transitions.size() < 2) return mat;
   for (size_t k = 0; k < transitions.size() - 1; ++k) {
-    int i = transitions[k] & 0xF; // 确保值在0-15
+    int i = transitions[k] & 0xF;
     int j = transitions[k + 1] & 0xF;
     mat.at<float>(i, j) += 1.0f;
   }
-
-  // 归一化为概率
   for (int row = 0; row < 16; ++row) {
-    float sum = cv::sum(mat.row(row))[0];
+    double sum{ cv::sum(mat.row(row))[0] };
     if (sum > 0) mat.row(row) /= sum;
   }
 
   return mat;
 }
+
 cv::Mat MTF::tileImages(const std::vector<cv::Mat>& images, const int cols,
                         const int dim) {
-  int total = cols * cols; // 总处理图像数（可能补零或截断）
-  std::vector<cv::Mat> rows;
-
-  for (int i = 0; i < cols; ++i) { // 每行
-    std::vector<cv::Mat> row_images;
-    for (int j = 0; j < cols; ++j) { // 每列
-      int index = i * cols + j;
-      cv::Mat img;
-      if (index < images.size() && index < total) {
-        img = images[index];
-      } else {
-        img = cv::Mat::zeros(dim, dim, CV_32FC1);
-      }
-      row_images.push_back(img);
-    }
-
-    // 水平拼接一行
-    cv::Mat row_mat;
-    cv::hconcat(row_images, row_mat);
-    rows.push_back(row_mat);
+  cv::Mat tiled{ cols * dim, cols * dim, CV_32FC1, cv::Scalar{ 0 } };
+  for (int idx = 0; idx < std::min((int)images.size(), cols * cols); ++idx) {
+    const int row{ idx / cols };
+    const int col{ idx % cols };
+    images[idx].copyTo(tiled(cv::Rect{ col * dim, row * dim, dim, dim }));
   }
-
-  // 垂直拼接所有行
-  cv::Mat tiled;
-  cv::vconcat(rows, tiled);
-  return tiled; // 尺寸为 (cols×dim) x (cols×dim)
+  return tiled;
 }
+
 cv::Mat GrayScale::Matrix() const {
-  std::vector<uchar> pixels;
-  pixels.reserve(m_width * m_width);
+  cv::Mat img{ m_width, m_width, CV_8UC1 };
+  size_t filled = 0;
 
-  // 依次将每个数据包的字节添加到 pixels 中
-  for (const auto& pkt : m_packets) {
+  for (auto& pkt : m_packets) {
     if (!pkt) continue;
-    pixels.insert(pixels.end(), pkt->byte_arr.begin(), pkt->byte_arr.end());
+    size_t len{ std::min(pkt->byte_arr.size(), img.total() - filled) };
+    if (len == 0) break;
+    std::memcpy(img.data + filled, pkt->byte_arr.data(), len);
+    filled += len;
   }
-
-  // 根据目标像素数进行填充或截断
-  pixels.resize(m_width * m_width, 0);
-
-  // 利用 pixels 构造一个 m_width x m_width 的单通道灰度图
-  cv::Mat img{ m_width, m_width, CV_8UC1, pixels.data() };
-  return img.clone(); // 克隆一份，确保数据独立
+  if (filled < img.total()) {
+    std::memset(img.data + filled, 0, img.total() - filled);
+  }
+  return img;
 }
 
 GrayScale::GrayScale(packet_list_t packets, int width)

@@ -40,11 +40,6 @@ struct RawPacket {
 
   [[nodiscard]] auto ArriveTime() const -> std::int64_t;
   [[nodiscard]] auto ByteCount() const -> std::int64_t;
-  /**
-   * 根据 byte_arr 解析出五元组作为key
-   * @return \p std::string
-   */
-  [[nodiscard]] auto GetKey() const -> std::string;
   /// 字节数据的开始地址
   /// @return const_iterator
   [[nodiscard]] auto Data() const -> u_char const*;
