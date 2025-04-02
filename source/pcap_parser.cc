@@ -1,4 +1,5 @@
-﻿#include <ntv/globals.hh>
+﻿#include <ntv/gaf.hh>
+#include <ntv/globals.hh>
 #include <ntv/mtf.hh>
 #include <ntv/pcap_parser.hh>
 #include <opencv2/opencv.hpp>
@@ -147,6 +148,9 @@ void PcapParser::WriteSession(const flow_node_t& node) {
   } else if (global::opt.outfmt == "mtf") {
     const MTF mtf{ node.second };
     mat = mtf.getMatrix();
+  } else if (global::opt.outfmt == "gaf") {
+    const GAF gaf{ node.second };
+    mat = gaf.getMatrix();
   }
 
   if (!cv::imwrite(save_path.string(), mat)) {
