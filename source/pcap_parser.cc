@@ -24,8 +24,7 @@ PcapParser::PcapParser() {
 
 // === 析构函数 ===
 PcapParser::~PcapParser() {
-  XLOG_INFO << "析构函数开始";
-  XLOG_INFO << "等待写队列处理: " << mWriteQueue.size_approx();
+  XLOG_INFO << "析构函数开始, 等待写队列处理: " << mWriteQueue.size_approx();
 
   for (int i = 0; i < mWriterThreads.size(); ++i) {
     XLOG_DEBUG << "Join前 mWriterThreads[" << i
@@ -34,8 +33,7 @@ PcapParser::~PcapParser() {
 
   while (mWriteQueue.size_approx()) { std::this_thread::sleep_for(1000ms); }
 
-  XLOG_INFO << "写队列已清空";
-  XLOG_INFO << "析构函数结束";
+  XLOG_INFO << "析构函数结束, 写队列已清空";
 }
 
 // === 解析主流程 ===
@@ -114,8 +112,8 @@ void PcapParser::RunShard(const int shardId, const std::stop_token& stop) {
   for (auto& [key, list] : shard.flowMap) {
     mWriteQueue.enqueue({ key, std::move(list) });
   }
-  XLOG_INFO << "Shard[" << shardId << "] Flush count: " << shard.flowMap.size();
-  XLOG_INFO << "Shard[" << shardId << "] 退出";
+  XLOG_INFO << "Shard[" << shardId
+            << "] 退出, Flush count: " << shard.flowMap.size();
 }
 
 void PcapParser::RunWriter(const std::stop_token& stop) {
@@ -143,11 +141,11 @@ void PcapParser::WriteSession(const flow_node_t& node) {
 
   cv::Mat mat;
   if (global::opt.outfmt == "tile") {
-    const GrayScale gray{ node.second };
+    const Tile gray{ node.second };
     mat = gray.Matrix();
   } else if (global::opt.outfmt == "mtf") {
     const MTF mtf{ node.second };
-    mat = mtf.getMatrix();
+    mat = mtf.Matrix();
   } else if (global::opt.outfmt == "gaf") {
     const GAF gaf{ node.second };
     mat = gaf.getMatrix();

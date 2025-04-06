@@ -15,7 +15,7 @@ MTF::MTF(const packet_list_t& packets, int cols) {
   const cv::Mat tiled_float{ tileImages(matrices, cols, 16) };
   tiled_float.convertTo(matrix_, CV_8UC1, 255.0);
 }
-cv::Mat MTF::getMatrix() const { return matrix_; }
+cv::Mat MTF::Matrix() const { return matrix_; }
 
 std::vector<int> MTF::processPacket(const raw_packet_t& packet) {
   const u_char* data = packet->Data();
@@ -42,7 +42,7 @@ std::vector<int> MTF::processPacket(const raw_packet_t& packet) {
 }
 
 cv::Mat MTF::computeTransitionMatrix(const std::vector<int>& transitions) {
-  cv::Mat mat{ cv::Mat::zeros(16, 16, CV_32FC1) };
+  cv::Mat mat{ cv::Mat::zeros(16, 16, CV_8UC1) };
   if (transitions.size() < 2) return mat;
   for (size_t k = 0; k < transitions.size() - 1; ++k) {
     int i = transitions[k] & 0xF;
@@ -59,7 +59,7 @@ cv::Mat MTF::computeTransitionMatrix(const std::vector<int>& transitions) {
 
 cv::Mat MTF::tileImages(const std::vector<cv::Mat>& images, const int cols,
                         const int dim) {
-  cv::Mat tiled{ cols * dim, cols * dim, CV_32FC1, cv::Scalar{ 0 } };
+  cv::Mat tiled(cols * dim, cols * dim, CV_8UC1, cv::Scalar{ 0 });
   for (int idx = 0; idx < std::min((int)images.size(), cols * cols); ++idx) {
     const int row{ idx / cols };
     const int col{ idx % cols };
@@ -68,15 +68,17 @@ cv::Mat MTF::tileImages(const std::vector<cv::Mat>& images, const int cols,
   return tiled;
 }
 
-cv::Mat GrayScale::Matrix() const {
-  cv::Mat img{ m_width, m_width, CV_8UC1 };
+cv::Mat Tile::Matrix() const {
+  cv::Mat img(m_width, m_width, CV_8UC1);
   size_t filled = 0;
 
   for (auto& pkt : m_packets) {
     if (!pkt) continue;
-    size_t len{ std::min(pkt->byte_arr.size(), img.total() - filled) };
+    auto const byte_alighed{ pkt->ToAligned() };
+
+    size_t len{ std::min(byte_alighed->Size(), img.total() - filled) };
     if (len == 0) break;
-    std::memcpy(img.data + filled, pkt->byte_arr.data(), len);
+    std::memcpy(img.data + filled, byte_alighed->Data(), len);
     filled += len;
   }
   if (filled < img.total()) {
@@ -85,6 +87,6 @@ cv::Mat GrayScale::Matrix() const {
   return img;
 }
 
-GrayScale::GrayScale(packet_list_t packets, int width)
+Tile::Tile(packet_list_t packets, int width)
     : m_packets{ std::move(packets) }
     , m_width(width) {}

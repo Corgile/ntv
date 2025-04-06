@@ -17,7 +17,7 @@ class MTF {
 public:
   explicit MTF(const packet_list_t& packets, int cols = 4);
 
-  cv::Mat getMatrix() const;
+  [[nodiscard]] cv::Mat Matrix() const;
 
 private:
   cv::Mat matrix_;
@@ -30,14 +30,14 @@ private:
                             int dim);
 };
 
-class GrayScale {
+class Tile {
 public:
   /**
    *
    * @param packets
    * @param width
    */
-  explicit GrayScale(packet_list_t packets, int width = 64);
+  explicit Tile(packet_list_t packets, int width = 64);
 
   /**
    * Matrix函数
@@ -48,7 +48,7 @@ public:
    * - 如果数据过多，则截断多余部分。
    * 返回的 cv::Mat 可被 cv::imwrite 保存为 PNG 图片。
    */
-  cv::Mat Matrix() const;
+  [[nodiscard]] cv::Mat Matrix() const;
 
 private:
   packet_list_t m_packets;
