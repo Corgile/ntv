@@ -8,7 +8,9 @@
       "generator": "Visual Studio 17 2022",
       "binaryDir": "${sourceDir}/build/release",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release"
+        "CMAKE_BUILD_TYPE": "Release",
+        "VCPKG_APPLOCAL_DEPS": "ON",
+        "CMAKE_TOOLCHAIN_FILE": "D:/Environment/vcpkg-clion/vcpkg/scripts/buildsystems/vcpkg.cmake"
       }
     },
     {
@@ -18,7 +20,9 @@
       "generator": "Visual Studio 17 2022",
       "binaryDir": "${sourceDir}/build/debug",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug"
+        "CMAKE_BUILD_TYPE": "Debug",
+        "VCPKG_APPLOCAL_DEPS": "ON",
+        "CMAKE_TOOLCHAIN_FILE": "D:/Environment/vcpkg-clion/vcpkg/scripts/buildsystems/vcpkg.cmake"
       }
     }
   ],
@@ -26,11 +30,13 @@
     {
       "name": "release",
       "configurePreset": "release",
+      "configuration": "Release",
       "description": "构建Release目标"
     },
     {
       "name": "debug",
       "configurePreset": "debug",
+      "configuration": "Debug",
       "description": "构建Debug目标"
     }
   ]
