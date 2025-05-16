@@ -1,0 +1,33 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug",
+      "type": "cppvsdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/debug/Debug/ntv.exe",
+      "args": [
+        "mtf",
+        "D:/System/temp/~nsu3.tmp",
+        "D:/User/WorkSpace/dataset/CIC-IoTDataset2023/valid/BenignTraffic3.pcap"
+      ],
+      "stopAtEntry": false,
+      "cwd": "${workspaceFolder}/build/debug/Debug",
+      "console": "internalConsole"
+    },
+    {
+      "name": "Release",
+      "type": "cppvsdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/release/Release/ntv.exe",
+      "args": [
+        "mtf",
+        "D:/System/temp/~nsu3.tmp",
+        "D:/User/WorkSpace/dataset/CIC-IoTDataset2023/valid/BenignTraffic3.pcap"
+      ],
+      "stopAtEntry": false,
+      "cwd": "${workspaceFolder}/build/release/Release",
+      "console": "internalConsole"
+    }
+  ]
+}

@@ -150,7 +150,7 @@ void PcapParser::WriteSession(const flow_node_t& node) {
   }
 
   if (!cv::imwrite(save_path.string(), mat)) {
-    XLOG_ERROR << "保存失败: " << save_path;
+    XLOG_FATAL << "保存失败: " << save_path;
   }
 }
 

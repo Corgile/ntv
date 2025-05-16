@@ -6,8 +6,8 @@
 #ifndef XLOG_SINK_HH
 #define XLOG_SINK_HH
 
-#include "xlog/detail/record.hh"
 #include "moodycamel/concurrent_queue.hh"
+#include "xlog/detail/record.hh"
 
 #include <charconv>
 #include <condition_variable>
@@ -35,7 +35,7 @@ inline void toInt(int num, char* p, int& size) {
 }
 
 inline char* getTimeStr(const auto& now) {
-  static thread_local char                 buf[24];
+  static thread_local char buf[24];
   static thread_local std::chrono::seconds last_sec_{};
 
   std::chrono::system_clock::duration d{ now.time_since_epoch() };
@@ -72,19 +72,19 @@ inline std::string_view LevelStr(Level level) {
   switch (level) {
   //@format:off
   case Level::TRACE:
-    return "TRACE ";
+    return "[TRACE] ";
   case Level::DEBUG:
-    return "DEBUG ";
+    return "[DEBUG] ";
   case Level::INFO:
-    return "INFO  ";
+    return " [INFO] ";
   case Level::WARN:
-    return "WARN  ";
+    return " [WARN] ";
   case Level::ERROR:
-    return "ERROR ";
+    return "[ERROR] ";
   case Level::FATAL:
-    return "FATAL ";
+    return "[FATAL] ";
   default:
-    return "NONE  ";
+    return " [NONE] ";
     // @format:on
   }
 }
@@ -154,9 +154,9 @@ inline std::string_view cleanColor(Level level) {
 }
 
 inline std::string_view getTidBuf(unsigned int tid) {
-  thread_local char         buf[24];
+  thread_local char buf[24];
   thread_local unsigned int last_tid;
-  thread_local size_t       last_len;
+  thread_local size_t last_len;
   if (tid == last_tid) { return { buf, last_len }; }
 
   buf[0]          = '[';
@@ -309,7 +309,7 @@ private:
 
     if (std::filesystem::path(filename).has_parent_path()) {
       std::error_code ec;
-      auto            parent = std::filesystem::path(filename).parent_path();
+      auto parent = std::filesystem::path(filename).parent_path();
       std::filesystem::create_directories(parent, ec);
       if (ec) {
         std::cout << "create directories error: " << ec.message() << std::flush;
@@ -320,7 +320,7 @@ private:
     file_.open(filename, std::ios::binary | std::ios::out | std::ios::app);
     if (file_) {
       std::error_code ec;
-      size_t          _fileSize = std::filesystem::file_size(filename, ec);
+      size_t _fileSize = std::filesystem::file_size(filename, ec);
       if (ec) {
         std::cout << "get file size error" << std::flush;
         abort();
@@ -337,7 +337,7 @@ private:
   std::string buildFilename(int fileIndex = 0) {
     if (fileIndex == 0) { return filename_; }
 
-    auto        filePath = std::filesystem::path(filename_);
+    auto filePath        = std::filesystem::path(filename_);
     std::string filename = filePath.stem().string();
 
     if (fileIndex > 0) {
@@ -383,19 +383,19 @@ private:
     currFileSize_ += str.size();
   }
 
-  bool        hasInit_ = false; // 全局logger是否已经被实例化
+  bool hasInit_ = false; // 全局logger是否已经被实例化
   std::string filename_;
 
-  bool   enableConsole_ = false;
-  bool   realTimeFlush_{};
-  int    maxFileCount_ = 0;
+  bool enableConsole_ = false;
+  bool realTimeFlush_{};
+  int maxFileCount_    = 0;
   size_t currFileSize_ = 0; // B
   size_t fileMaxSize_  = 0;
 
   /// 输出流
   std::shared_mutex mtx_;
-  empty_mutex       empty_;
-  std::ofstream     file_;
+  empty_mutex empty_;
+  std::ofstream file_;
 
   std::mutex queMtx_;
 
@@ -404,5 +404,5 @@ private:
   std::condition_variable cnd_;
   std::atomic<bool> stopped_ = false;
 };
-}
+} // namespace xlog
 #endif // XLOG_SINK_HH

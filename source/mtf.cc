@@ -4,7 +4,7 @@
 
 #include <utility>
 
-#include "ntv/mtf.hh"
+#include <ntv/mtf.hh>
 
 MTF::MTF(const packet_list_t& packets, int cols) {
   std::vector<cv::Mat> matrices;
@@ -18,8 +18,8 @@ MTF::MTF(const packet_list_t& packets, int cols) {
 cv::Mat MTF::getMatrix() const { return matrix_; }
 
 std::vector<int> MTF::processPacket(const raw_packet_t& packet) {
-  const u_char* data = packet->Data();
-  size_t length      = packet->ByteCount();
+  u_char const* data  = packet->Data();
+  size_t const length = packet->ByteCount();
   std::vector<bool> bits;
 
   // 将每个字节拆解为8个二进制位
