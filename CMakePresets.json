@@ -2,25 +2,12 @@
   "version": 3,
   "configurePresets": [
     {
-      "name": "release",
-      "displayName": "Release with MSVC",
-      "description": "使用MSVC并生成VS Release解决方案",
+      "name": "msvc-h64-x64",
+      "displayName": "工具链: MSVC",
+      "description": "使用MSVC生成解决方案",
       "generator": "Visual Studio 17 2022",
-      "binaryDir": "${sourceDir}/build/release",
+      "binaryDir": "${sourceDir}/build/",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "VCPKG_APPLOCAL_DEPS": "ON",
-        "CMAKE_TOOLCHAIN_FILE": "D:/Environment/vcpkg-clion/vcpkg/scripts/buildsystems/vcpkg.cmake"
-      }
-    },
-    {
-      "name": "debug",
-      "displayName": "Debug with MSVC",
-      "description": "使用MSVC并生成VS Debug解决方案",
-      "generator": "Visual Studio 17 2022",
-      "binaryDir": "${sourceDir}/build/debug",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
         "VCPKG_APPLOCAL_DEPS": "ON",
         "CMAKE_TOOLCHAIN_FILE": "D:/Environment/vcpkg-clion/vcpkg/scripts/buildsystems/vcpkg.cmake"
       }
@@ -28,14 +15,14 @@
   ],
   "buildPresets": [
     {
-      "name": "release",
-      "configurePreset": "release",
+      "name": "msvc-release",
+      "configurePreset": "msvc-h64-x64",
       "configuration": "Release",
       "description": "构建Release目标"
     },
     {
-      "name": "debug",
-      "configurePreset": "debug",
+      "name": "msvc-debug",
+      "configurePreset": "msvc-h64-x64",
       "configuration": "Debug",
       "description": "构建Debug目标"
     }

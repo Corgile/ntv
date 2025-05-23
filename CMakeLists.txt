@@ -1,5 +1,5 @@
-﻿CMAKE_MINIMUM_REQUIRED(VERSION 3.20)
-PROJECT(NTV)
+﻿CMAKE_MINIMUM_REQUIRED(VERSION 3.29)
+PROJECT(NTV VERSION 1.0 LANGUAGES CXX)
 SET(BIN_TARGET ntv)
 
 SET(CMAKE_TOOLCHAIN_FILE D:/Environment/vcpkg-clion/vcpkg/scripts/buildsystems/vcpkg.cmake)
@@ -8,8 +8,11 @@ SET(CMAKE_PREFIX_PATH ${DEPENDENCY_LOCAL_DIR})
 
 SET(CMAKE_CXX_STANDARD 26)
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include)
-AUX_SOURCE_DIRECTORY(${CMAKE_SOURCE_DIR}/source SOURCE_FILE)
-ADD_EXECUTABLE(${BIN_TARGET} main.cc ${SOURCE_FILE})
+#AUX_SOURCE_DIRECTORY(${CMAKE_SOURCE_DIR}/source SOURCE_FILE)
+FILE(GLOB_RECURSE SOURCE_FILES ${PROJECT_SOURCE_DIR}/source/*.cc)
+FILE(GLOB_RECURSE HEADER_FILES ${PROJECT_SOURCE_DIR}/include/*.hh)
+
+ADD_EXECUTABLE(${BIN_TARGET} main.cc ${SOURCE_FILES} ${HEADER_FILES})
 
 IF (WIN32)
     SET(PCAP_LIB_NAME wpcap)
@@ -47,3 +50,9 @@ ADD_CUSTOM_COMMAND(
         COMMENT "发布可执行文件到 D:\\Software\\Portable\\bin"
         VERBATIM
 )
+
+# INCLUDE(cmake/export-vcxproj.cmake)
+# 引入独立配置文件
+include(cmake/packaging.cmake)
+include(cmake/install.cmake)
+include(cmake/test.cmake)
