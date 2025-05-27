@@ -44,9 +44,9 @@ auto RawPacket::End() const -> ustring_t::const_iterator {
 }
 
 std::optional<FlowKey> RawPacket::GetFlowKey() const {
-  u_char const* packet_data = byte_arr.data();
-  auto const* eth_hdr = reinterpret_cast<ether_header const*>(packet_data);
-  u_char const* ip_header_start = packet_data + sizeof(ether_header);
+  u_char const* packet_data{ byte_arr.data() };
+  auto const* eth_hdr{ reinterpret_cast<ether_header const*>(packet_data) };
+  u_char const* ip_header_start{ packet_data + sizeof(ether_header) };
 
   if (ntohs(eth_hdr->ether_type) == ETHERTYPE_VLAN) {
     ip_header_start += sizeof(vlan_header);
@@ -58,8 +58,8 @@ std::optional<FlowKey> RawPacket::GetFlowKey() const {
   if (ip_hdr->ip_p != IPPROTO_TCP && ip_hdr->ip_p != IPPROTO_UDP)
     return std::nullopt;
 
-  uint32_t ip1 = ntohl(ip_hdr->ip_src.s_addr);
-  uint32_t ip2 = ntohl(ip_hdr->ip_dst.s_addr);
+  uint32_t ip1{ ntohl(ip_hdr->ip_src.s_addr) };
+  uint32_t ip2{ ntohl(ip_hdr->ip_dst.s_addr) };
   uint16_t port1, port2;
 
   if (ip_hdr->ip_p == IPPROTO_TCP) {
@@ -81,6 +81,36 @@ std::optional<FlowKey> RawPacket::GetFlowKey() const {
   }
 
   return FlowKey{ ip1, ip2, port1, port2, ip_hdr->ip_p };
+}
+
+std::vector<int> RawPacket::ByteSeq() const {
+  std::vector<int> intdata;
+  std::ranges::transform(byte_arr, std::back_inserter(intdata),
+                         [](u_char byte) { return static_cast<int>(byte); });
+  return intdata;
+}
+
+void to_json(nlohmann::json& j, const RawPacket& pkt) {
+  j = nlohmann::json{ { "timestamp", pkt.ArriveTime() },
+                      { "size", pkt.ByteCount() },
+                      { "sequence", pkt.ByteSeq() } };
+}
+
+void to_json(nlohmann::json& j, const std::shared_ptr<RawPacket>& pkt_ptr) {
+  if (pkt_ptr) {
+    j = *pkt_ptr; // 递归调用 RawPacket 的 to_json
+  } else {
+    j = nullptr;
+  }
+}
+std::string ipv4_to_string(uint32_t ip_addr_net_order) {
+  in_addr addr{};
+  addr.s_addr = htonl(ip_addr_net_order); // 保证网络字节序
+  char str[INET_ADDRSTRLEN];
+  if (!inet_ntop(AF_INET, &addr, str, INET_ADDRSTRLEN)) {
+    throw std::runtime_error("inet_ntop failed");
+  }
+  return std::string{ str };
 }
 
 // peer

@@ -18,8 +18,8 @@
 #include <pcap/pcap.h>
 
 #include <moodycamel/concurrent_queue.hh>
-#include <ntv/usings.hh>
 #include <ntv/flow_key.hh>
+#include <ntv/usings.hh>
 
 struct RawPacket {
   RawPacket() = default;
@@ -49,9 +49,12 @@ struct RawPacket {
   /// 字节数据的末尾
   /// @return const_iterator
   [[nodiscard]] auto End() const -> ustring_t::const_iterator;
-  std::optional<FlowKey> GetFlowKey() const;
+  [[nodiscard]] std::optional<FlowKey> GetFlowKey() const;
+  [[nodiscard]] std::vector<int> ByteSeq() const;
 };
-
+void to_json(nlohmann::json& j, const RawPacket& pkt);
+void to_json(nlohmann::json& j, const std::shared_ptr<RawPacket>& pkt_ptr);
+std::string ipv4_to_string(uint32_t ip_addr_net_order);
 struct Peer {
   std::string ip{};
   std::uint16_t port{};

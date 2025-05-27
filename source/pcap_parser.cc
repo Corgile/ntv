@@ -1,7 +1,6 @@
-﻿#include <ntv/globals.hh>
-#include <ntv/mtf.hh>
+﻿#include <nlohmann/json.hpp>
+#include <ntv/globals.hh>
 #include <ntv/pcap_parser.hh>
-#include <opencv2/opencv.hpp>
 #include <pcap/pcap.h>
 #include <xlog/api.hh>
 
@@ -134,24 +133,20 @@ void PcapParser::RunWriter(const std::stop_token& stop) {
 
 // === 写出PNG逻辑 ===
 void PcapParser::WriteSession(const flow_node_t& node) {
-  fs::path const save_path = fs::path{ global::opt.outdir } /
-    (std::to_string(node.first.ip1) + "-" + std::to_string(node.first.ip2) +
-     "-" + std::to_string(node.first.port1) + "-" +
-     std::to_string(node.first.port2) + "-" +
-     std::to_string(node.first.protocol) + ".png");
+  std::string tpl{ ipv4_to_string(node.first.ip1) + "-" +
+                   ipv4_to_string(node.first.ip2) + "-" +
+                   std::to_string(node.first.port1) + "-" +
+                   std::to_string(node.first.port2) + "-" +
+                   std::to_string(node.first.protocol) };
 
-  cv::Mat mat;
-  if (global::opt.outfmt == "tile") {
-    const GrayScale gray{ node.second };
-    mat = gray.Matrix();
-  } else if (global::opt.outfmt == "mtf") {
-    const MTF mtf{ node.second };
-    mat = mtf.getMatrix();
-  }
-
-  if (!cv::imwrite(save_path.string(), mat)) {
-    XLOG_FATAL << "保存失败: " << save_path;
-  }
+  nlohmann::json j;
+  j["flow_key"]           = node.first;
+  j["flow_key"]["5tuple"] = tpl;
+  j["packets"]            = node.second;
+  fs::create_directory("out");
+  fs::path json_file = fs::path{ "out" } / (tpl + "-dump.json");
+  std::ofstream f(json_file, std::ios::out);
+  f << j.dump();
 }
 
 // === 当前时间（微秒）===
