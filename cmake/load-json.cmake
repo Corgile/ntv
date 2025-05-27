@@ -1,0 +1,2 @@
+﻿FIND_PACKAGE(nlohmann_json CONFIG REQUIRED)
+TARGET_LINK_LIBRARIES(${BIN_TARGET} PRIVATE nlohmann_json::nlohmann_json)
